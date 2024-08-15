@@ -1,6 +1,10 @@
 #include <RadioLib.h>
 #include <fstream>
 #include <string>
+#include <csignal>
+#include <iostream>
+#include <unistd.h> // Include for getcwd
+#include <termios.h>
 #include "PiHal.h"
 
 // Create a new instance of the HAL class
@@ -14,10 +18,18 @@ PiHal* hal = new PiHal(0);
 // BUSY pin: WiringPi 0 (GPIO 17)
 SX1262 radio = new Module(hal, 10, 2, 21, 0);
 
+volatile bool keepRunning = true;
+
+void signalHandler(int signum) {
+  keepRunning = false;
+}
+
 int main() {
+  // Register signal handler for Ctrl+C
+  signal(SIGINT, signalHandler);
+
   // Initialize the radio module with XTAL configuration
   printf("[SX1262] Initializing ... ");
-  //int state = radio.beginFSK(915.0, 4.8, 125.0, 467.0, 10.0, 16.0, 0.0, false);
   int state = radio.begin(915.0, 125.0, 7, 5, 0, 10, 8, 0.0, false);
   if (state != RADIOLIB_ERR_NONE) {
     printf("Initialization failed, code %d\n", state);
@@ -25,17 +37,19 @@ int main() {
   }
   printf("Initialization success!\n");
 
-  // Open the file
-  std::ifstream file("test_tx.txt");
+  // Open the file using an absolute path
+  std::ifstream file("C:\\Users\\berfr\\repos\\1262_tests\\test_tx.txt");
   if (!file.is_open()) {
     printf("Failed to open file!\n");
     return 1;
   }
+  printf("File opened successfully.\n");
 
   std::string line;
   // Read and transmit each line from the file
-  while (std::getline(file, line)) {
-    printf("[SX1262] Transmitting: %s\n", line.c_str());
+  while (keepRunning && std::getline(file, line)) {
+    printf("Read line: %s\n", line.c_str()); // Debugging statement
+    printf("[SX1262] Transmitting packet: %s\n", line.c_str());
     state = radio.transmit(line.c_str());
     if (state == RADIOLIB_ERR_NONE) {
       printf("Transmission success!\n");
@@ -45,8 +59,18 @@ int main() {
 
     // Wait a delay before transmitting the next line
     hal->delay(1000); // 1000 milliseconds delay
+
+    // Check for user input to stop transmission
+    if (std::cin.rdbuf()->in_avail() > 0) {
+      char c;
+      std::cin >> c;
+      if (c == 'q') {
+        keepRunning = false;
+      }
+    }
   }
 
+  printf("Exiting loop.\n"); // Debugging statement
   file.close();
   return 0;
 }
