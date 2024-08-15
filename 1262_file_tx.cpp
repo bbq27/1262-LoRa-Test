@@ -43,8 +43,8 @@ int main() {
       printf("Transmission failed, code %d\n", state);
     }
 
-    // Wait for a short delay before transmitting the next line
-    hal->delay(500); // 500 milliseconds delay
+    // Wait a delay before transmitting the next line
+    hal->delay(1000); // 1000 milliseconds delay
   }
 
   file.close();
