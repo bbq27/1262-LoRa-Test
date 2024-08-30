@@ -103,9 +103,9 @@
 #         with open('rx_file.txt', 'w') as file:
 #             while True:
 #                 if ser.in_waiting > 0:
-#                     line = ser.readline().decode('utf-8').strip()
-#                     print(f"Received: {line}")
-#                     file.write(line + '\n')
+#                     line = ser.readline().decode('utf-8', errors='ignore').strip()
+#                     print(line)  # Print raw data
+#                     file.write(line + '\n')  # Write raw data to file
 #                 else:
 #                     time.sleep(1)  # Add a small delay to avoid busy-waiting
 #     except KeyboardInterrupt:
@@ -143,28 +143,30 @@
 #     finally:
 #         ser.close()
 
+# to run script use: python test_comms.py [name of tx file] [transmitter COM port] [receiver COM port]
+
 import serial
 import time
 import signal
 import sys
 import argparse
 
-def send_file(file_path):
+def send_file(file_path, ser_tx):
     try:
         with open(file_path, 'r') as file:
             for line in file:
-                ser.write(line.encode('utf-8'))
+                ser_tx.write(line.encode('utf-8'))
                 print(f"Sent: {line.strip()}")
                 time.sleep(2)  # Delay between sending lines
     except Exception as e:
         print(f"Error: {e}")
 
-def receive_data():
+def receive_data(ser_rx):
     try:
         with open('rx_file.txt', 'w') as file:
             while True:
-                if ser.in_waiting > 0:
-                    line = ser.readline().decode('utf-8', errors='ignore').strip()
+                if ser_rx.in_waiting > 0:
+                    line = ser_rx.readline().decode('utf-8', errors='ignore').strip()
                     print(line)  # Print raw data
                     file.write(line + '\n')  # Write raw data to file
                 else:
@@ -172,11 +174,12 @@ def receive_data():
     except KeyboardInterrupt:
         print("Keyboard interrupt received. Exiting...")
     finally:
-        ser.close()
+        ser_rx.close()
 
 def handle_sigint(signum, frame):
     print("SIGINT received. Exiting...")
-    ser.close()
+    ser_tx.close()
+    ser_rx.close()
     sys.exit(0)
 
 if __name__ == "__main__":
@@ -186,20 +189,24 @@ if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Send and receive data over serial.')
     parser.add_argument('input_file', help='Path to the input file to send')
+    parser.add_argument('tx_port', help='Serial port for the transmitter')
+    parser.add_argument('rx_port', help='Serial port for the receiver')
     args = parser.parse_args()
 
-    # Configure the serial port
+    # Configure the serial ports
     try:
-        ser = serial.Serial('COM4', 9600, timeout=1)  # Replace 'COM4' with your serial port
+        ser_tx = serial.Serial(args.tx_port, 9600, timeout=1)  # Transmitter serial port
+        ser_rx = serial.Serial(args.rx_port, 9600, timeout=1)  # Receiver serial port
     except serial.SerialException as e:
         print(f"Could not open serial port: {e}")
         sys.exit(1)
 
     # Send and receive data
     try:
-        send_file(args.input_file)
-        receive_data()
+        send_file(args.input_file, ser_tx)
+        receive_data(ser_rx)
     except KeyboardInterrupt:
         print("Keyboard interrupt received. Exiting...")
     finally:
-        ser.close()
+        ser_tx.close()
+        ser_rx.close()
