@@ -145,6 +145,75 @@
 
 # to run script use: python test_comms.py [name of tx file] [transmitter COM port] [receiver COM port]
 
+# import serial
+# import time
+# import signal
+# import sys
+# import argparse
+
+# def send_file(file_path, ser_tx):
+#     try:
+#         with open(file_path, 'r') as file:
+#             for line in file:
+#                 ser_tx.write(line.encode('utf-8'))
+#                 print(f"Sent: {line.strip()}")
+#                 time.sleep(2)  # Delay between sending lines
+#     except Exception as e:
+#         print(f"Error: {e}")
+
+# def receive_data(ser_rx):
+#     try:
+#         with open('rx_file.txt', 'w') as file:
+#             while True:
+#                 if ser_rx.in_waiting > 0:
+#                     line = ser_rx.readline().decode('utf-8', errors='ignore').strip()
+#                     print(line)  # Print raw data
+#                     file.write(line + '\n')  # Write raw data to file
+#                 else:
+#                     time.sleep(1)  # Add a small delay to avoid busy-waiting
+#     except KeyboardInterrupt:
+#         print("Keyboard interrupt received. Exiting...")
+#     finally:
+#         ser_rx.close()
+
+# def handle_sigint(signum, frame):
+#     print("SIGINT received. Exiting...")
+#     ser_tx.close()
+#     ser_rx.close()
+#     sys.exit(0)
+
+# if __name__ == "__main__":
+#     # Register the SIGINT signal handler
+#     signal.signal(signal.SIGINT, handle_sigint)
+
+#     # Parse command-line arguments
+#     parser = argparse.ArgumentParser(description='Send and receive data over serial.')
+#     parser.add_argument('input_file', help='Path to the input file to send')
+#     parser.add_argument('tx_port', help='Serial port for the transmitter')
+#     parser.add_argument('rx_port', help='Serial port for the receiver')
+#     args = parser.parse_args()
+
+#     # Configure the serial ports
+#     try:
+#         ser_tx = serial.Serial(args.tx_port, 9600, timeout=1)  # Transmitter serial port
+#         ser_rx = serial.Serial(args.rx_port, 9600, timeout=1)  # Receiver serial port
+#     except serial.SerialException as e:
+#         print(f"Could not open serial port: {e}")
+#         sys.exit(1)
+
+#     # Send and receive data
+#     try:
+#         send_file(args.input_file, ser_tx)
+#         receive_data(ser_rx)
+#     except KeyboardInterrupt:
+#         print("Keyboard interrupt received. Exiting...")
+#     finally:
+#         ser_tx.close()
+#         ser_rx.close()
+
+# to transmit: python test_comms.py transmit [COM port for transmitter] --file [text file name]
+# to receive: python test_comms.py receive [COM port for receiver]
+
 import serial
 import time
 import signal
@@ -162,13 +231,14 @@ def send_file(file_path, ser_tx):
         print(f"Error: {e}")
 
 def receive_data(ser_rx):
+    print("Starting to receive data...")
     try:
         with open('rx_file.txt', 'w') as file:
             while True:
                 if ser_rx.in_waiting > 0:
                     line = ser_rx.readline().decode('utf-8', errors='ignore').strip()
-                    print(line)  # Print raw data
-                    file.write(line + '\n')  # Write raw data to file
+                    print(f"Received: {line}")  # Print received data
+                    file.write(line + '\n')  # Write received data to file
                 else:
                     time.sleep(1)  # Add a small delay to avoid busy-waiting
     except KeyboardInterrupt:
@@ -178,8 +248,10 @@ def receive_data(ser_rx):
 
 def handle_sigint(signum, frame):
     print("SIGINT received. Exiting...")
-    ser_tx.close()
-    ser_rx.close()
+    if 'ser_tx' in globals():
+        ser_tx.close()
+    if 'ser_rx' in globals():
+        ser_rx.close()
     sys.exit(0)
 
 if __name__ == "__main__":
@@ -188,25 +260,36 @@ if __name__ == "__main__":
 
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Send and receive data over serial.')
-    parser.add_argument('input_file', help='Path to the input file to send')
-    parser.add_argument('tx_port', help='Serial port for the transmitter')
-    parser.add_argument('rx_port', help='Serial port for the receiver')
+    parser.add_argument('mode', choices=['transmit', 'receive'], help='Mode of operation: transmit or receive')
+    parser.add_argument('port', help='Serial port to use')
+    parser.add_argument('--file', help='Path to the input file to send (required for transmit mode)', required=False)
     args = parser.parse_args()
 
-    # Configure the serial ports
+    # Check if the file argument is provided in transmit mode
+    if args.mode == 'transmit' and not args.file:
+        print("Error: --file argument is required in transmit mode")
+        sys.exit(1)
+
+    # Configure the serial port
     try:
-        ser_tx = serial.Serial(args.tx_port, 9600, timeout=1)  # Transmitter serial port
-        ser_rx = serial.Serial(args.rx_port, 9600, timeout=1)  # Receiver serial port
+        if args.mode == 'transmit':
+            ser_tx = serial.Serial(args.port, 9600, timeout=1)  # Transmitter serial port
+        elif args.mode == 'receive':
+            ser_rx = serial.Serial(args.port, 9600, timeout=1)  # Receiver serial port
     except serial.SerialException as e:
         print(f"Could not open serial port: {e}")
         sys.exit(1)
 
-    # Send and receive data
+    # Execute the appropriate function based on the mode
     try:
-        send_file(args.input_file, ser_tx)
-        receive_data(ser_rx)
+        if args.mode == 'transmit':
+            send_file(args.file, ser_tx)
+        elif args.mode == 'receive':
+            receive_data(ser_rx)
     except KeyboardInterrupt:
         print("Keyboard interrupt received. Exiting...")
     finally:
-        ser_tx.close()
-        ser_rx.close()
+        if 'ser_tx' in globals():
+            ser_tx.close()
+        if 'ser_rx' in globals():
+            ser_rx.close()
